@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "line": {
+      "command": "bun",
+      "args": ["run", "--cwd", "${CLAUDE_PLUGIN_ROOT}", "--shell=bun", "--silent", "start"],
+      "env": {
+        "LINE_CHANNEL_SECRET": "${LINE_CHANNEL_SECRET}",
+        "LINE_CHANNEL_ACCESS_TOKEN": "${LINE_CHANNEL_ACCESS_TOKEN}"
+      }
+    }
+  }
+}
