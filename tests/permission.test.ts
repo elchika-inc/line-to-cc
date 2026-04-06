@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseVerdict, formatPermissionRequest } from '../src/permission'
+import { parseVerdict, buildPermissionRequestMessage } from '../src/permission'
 
 describe('parseVerdict', () => {
   test('parses "yes abcde"', () => {
@@ -73,18 +73,28 @@ describe('parseVerdict', () => {
   })
 })
 
-describe('formatPermissionRequest', () => {
-  test('formats permission request message', () => {
-    const msg = formatPermissionRequest({
+describe('buildPermissionRequestMessage', () => {
+  test('builds flex message with quick reply', () => {
+    const msg = buildPermissionRequestMessage({
       request_id: 'abcde',
       tool_name: 'Bash',
       description: 'Run a shell command',
       input_preview: '{"command":"ls -la"}',
-    })
-    expect(msg).toContain('Bash')
-    expect(msg).toContain('Run a shell command')
-    expect(msg).toContain('ls -la')
-    expect(msg).toContain('yes')
-    expect(msg).toContain('no')
+    }) as any
+
+    expect(msg.type).toBe('flex')
+    expect(msg.altText).toContain('Bash')
+    expect(msg.contents.type).toBe('bubble')
+
+    // Body contains tool name and description
+    const bodyTexts = JSON.stringify(msg.contents.body)
+    expect(bodyTexts).toContain('Bash')
+    expect(bodyTexts).toContain('Run a shell command')
+    expect(bodyTexts).toContain('ls -la')
+
+    // Quick reply buttons
+    expect(msg.quickReply.items).toHaveLength(2)
+    expect(msg.quickReply.items[0].action.text).toBe('yes')
+    expect(msg.quickReply.items[1].action.text).toBe('no')
   })
 })

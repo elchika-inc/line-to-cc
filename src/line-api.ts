@@ -40,6 +40,22 @@ export function createLineClient(accessToken: string) {
     }
   }
 
+  async function pushRawMessages(userId: string, messages: unknown[]): Promise<void> {
+    const res = await fetch(PUSH_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ to: userId, messages }),
+    })
+    messageCount++
+    if (!res.ok) {
+      const body = await res.text()
+      console.error(`[line] Push API error (${res.status}): ${body}`)
+    }
+  }
+
   async function setWebhookUrl(endpoint: string): Promise<boolean> {
     const res = await fetch(WEBHOOK_ENDPOINT_URL, {
       method: 'PUT',
@@ -85,7 +101,7 @@ export function createLineClient(accessToken: string) {
     return data
   }
 
-  return { pushMessage, setWebhookUrl, getWebhookUrl, testWebhook }
+  return { pushMessage, pushRawMessages, setWebhookUrl, getWebhookUrl, testWebhook }
 }
 
 export type LineClient = ReturnType<typeof createLineClient>

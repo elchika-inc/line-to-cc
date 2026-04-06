@@ -10,7 +10,7 @@ import { createLineClient } from './line-api'
 import { createAccessControl } from './access-control'
 import {
   PermissionRequestSchema,
-  formatPermissionRequest,
+  buildPermissionRequestMessage,
 } from './permission'
 import { startTunnel } from './tunnel'
 import { join } from 'path'
@@ -114,8 +114,8 @@ mcp.setNotificationHandler(PermissionRequestSchema, async ({ params }) => {
     return
   }
   lastPendingRequestId = params.request_id
-  const msg = formatPermissionRequest(params)
-  await lineClient.pushMessage(targetUserId, msg)
+  const msg = buildPermissionRequestMessage(params)
+  await lineClient.pushRawMessages(targetUserId, [msg])
 })
 
 // --- Webhook App ---

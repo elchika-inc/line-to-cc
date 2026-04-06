@@ -49,12 +49,73 @@ export function parseVerdict(text: string, fallbackRequestId?: string): Verdict 
   return null
 }
 
-export function formatPermissionRequest(params: PermissionRequestParams): string {
-  return (
-    `Claude が ${params.tool_name} を実行しようとしています:\n` +
-    `${params.description}\n\n` +
-    `${params.input_preview}\n\n` +
-    `承認: yes\n` +
-    `拒否: no`
-  )
+export function buildPermissionRequestMessage(params: PermissionRequestParams): unknown {
+  return {
+    type: 'flex',
+    altText: `Claude が ${params.tool_name} を実行しようとしています`,
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'text',
+            text: 'Permission Request',
+            weight: 'bold',
+            size: 'lg',
+            color: '#1a1a1a',
+          },
+        ],
+        backgroundColor: '#f5f5f5',
+        paddingAll: '16px',
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        contents: [
+          {
+            type: 'box',
+            layout: 'horizontal',
+            spacing: 'sm',
+            contents: [
+              { type: 'text', text: 'Tool', size: 'sm', color: '#888888', flex: 0 },
+              { type: 'text', text: params.tool_name, size: 'sm', weight: 'bold', wrap: true },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            spacing: 'sm',
+            contents: [
+              { type: 'text', text: 'Desc', size: 'sm', color: '#888888', flex: 0 },
+              { type: 'text', text: params.description, size: 'sm', wrap: true },
+            ],
+          },
+          { type: 'separator', margin: 'md' },
+          {
+            type: 'text',
+            text: params.input_preview,
+            size: 'xs',
+            color: '#666666',
+            wrap: true,
+          },
+        ],
+        paddingAll: '16px',
+      },
+    },
+    quickReply: {
+      items: [
+        {
+          type: 'action',
+          action: { type: 'message', label: 'yes', text: 'yes' },
+        },
+        {
+          type: 'action',
+          action: { type: 'message', label: 'no', text: 'no' },
+        },
+      ],
+    },
+  }
 }
