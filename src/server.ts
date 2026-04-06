@@ -181,8 +181,9 @@ console.error(`[line] Access mode: ${accessControl.getMode()}`)
 
 // --- Start Tunnel & Configure Webhook ---
 let killTunnel: (() => void) | null = null
-try {
-  console.error('[line] Starting cloudflared tunnel...')
+
+async function setupTunnelAndWebhook(): Promise<void> {
+  console.error('[line] Starting cloudflared tunnel (killing existing tunnels first)...')
   const tunnel = await startTunnel(PORT)
   killTunnel = tunnel.kill
   const webhookUrl = `${tunnel.url}/webhook`
@@ -192,31 +193,45 @@ try {
   console.error(`[line] Setting webhook URL: ${webhookUrl}`)
   const setResult = await lineClient.setWebhookUrl(webhookUrl)
   if (!setResult) {
-    console.error('[line] WARNING: Failed to set webhook URL. Set it manually in LINE Console.')
-  } else {
-    console.error('[line] Webhook URL set successfully')
+    throw new Error('Failed to set webhook URL via LINE API')
+  }
+  console.error('[line] Webhook URL set successfully')
 
-    // Test webhook connectivity
-    console.error('[line] Testing webhook connectivity...')
-    // Wait briefly for LINE to propagate the new URL
+  // Verify the URL was actually set
+  const currentUrl = await lineClient.getWebhookUrl()
+  if (currentUrl !== webhookUrl) {
+    throw new Error(`Webhook URL mismatch: expected ${webhookUrl}, got ${currentUrl}`)
+  }
+  console.error('[line] Webhook URL verified in LINE')
+
+  // Test webhook connectivity with retry
+  console.error('[line] Testing webhook connectivity...')
+  const maxRetries = 3
+  for (let i = 0; i < maxRetries; i++) {
     await new Promise((r) => setTimeout(r, 2000))
     const testResult = await lineClient.testWebhook()
     if (testResult.success) {
       console.error(`[line] Webhook test PASSED (status: ${testResult.statusCode})`)
-    } else {
-      console.error(`[line] Webhook test FAILED (status: ${testResult.statusCode}, reason: ${testResult.reason})`)
-      console.error('[line] The tunnel is running but LINE could not reach it. Retrying in 5s...')
-      await new Promise((r) => setTimeout(r, 5000))
-      const retry = await lineClient.testWebhook()
-      if (retry.success) {
-        console.error(`[line] Webhook test PASSED on retry (status: ${retry.statusCode})`)
-      } else {
-        console.error(`[line] Webhook test still FAILED. Check cloudflared and LINE Console.`)
-      }
+      return
     }
+    console.error(`[line] Webhook test attempt ${i + 1}/${maxRetries} FAILED (status: ${testResult.statusCode}, reason: ${testResult.reason})`)
   }
+  throw new Error(`Webhook test failed after ${maxRetries} attempts`)
+}
+
+try {
+  await setupTunnelAndWebhook()
+  // Notify Claude Code session that LINE is ready
+  await mcp.notification({
+    method: 'notifications/claude/channel',
+    params: {
+      content: 'LINE channel ready. Tunnel established and webhook connectivity verified.',
+      meta: { status: 'ready' },
+    },
+  })
 } catch (err) {
-  console.error(`[line] Tunnel setup failed: ${err instanceof Error ? err.message : err}`)
+  const msg = err instanceof Error ? err.message : String(err)
+  console.error(`[line] Tunnel setup failed: ${msg}`)
   console.error('[line] Continuing without tunnel. Set webhook URL manually.')
 }
 

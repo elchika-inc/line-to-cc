@@ -57,6 +57,16 @@ export function createLineClient(accessToken: string) {
     return true
   }
 
+  async function getWebhookUrl(): Promise<string | null> {
+    const res = await fetch(WEBHOOK_ENDPOINT_URL, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) return null
+    const data = await res.json() as { endpoint: string; active: boolean }
+    return data.endpoint
+  }
+
   async function testWebhook(): Promise<{ success: boolean; statusCode?: number; reason?: string }> {
     const res = await fetch(WEBHOOK_TEST_URL, {
       method: 'POST',
@@ -75,7 +85,7 @@ export function createLineClient(accessToken: string) {
     return data
   }
 
-  return { pushMessage, setWebhookUrl, testWebhook }
+  return { pushMessage, setWebhookUrl, getWebhookUrl, testWebhook }
 }
 
 export type LineClient = ReturnType<typeof createLineClient>
