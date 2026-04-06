@@ -12,6 +12,7 @@ import {
   PermissionRequestSchema,
   formatPermissionRequest,
 } from './permission'
+import { startTunnel } from './tunnel'
 import { join } from 'path'
 import { homedir } from 'os'
 
@@ -71,6 +72,17 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['user_id', 'text'],
       },
     },
+    {
+      name: 'line_verify_pairing',
+      description: 'Verify a pairing code to authorize a LINE user',
+      inputSchema: {
+        type: 'object' as const,
+        properties: {
+          code: { type: 'string', description: 'The 6-character pairing code' },
+        },
+        required: ['code'],
+      },
+    },
   ],
 }))
 
@@ -79,6 +91,16 @@ mcp.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { user_id, text } = request.params.arguments as { user_id: string; text: string }
     await lineClient.pushMessage(user_id, text)
     return { content: [{ type: 'text' as const, text: 'Message sent.' }] }
+  }
+  if (request.params.name === 'line_verify_pairing') {
+    const { code } = request.params.arguments as { code: string }
+    const result = accessControl.verifyPairing(code)
+    if (result.success) {
+      await accessControl.save()
+      await lineClient.pushMessage(result.userId, 'ペアリング完了! Claude Code と接続されました。')
+      return { content: [{ type: 'text' as const, text: `Paired successfully with user ${result.userId}` }] }
+    }
+    return { content: [{ type: 'text' as const, text: `Pairing failed: ${result.error}` }] }
   }
   throw new Error(`Unknown tool: ${request.params.name}`)
 })
@@ -157,9 +179,51 @@ const httpServer = Bun.serve({
 console.error(`[line] Webhook server listening on http://127.0.0.1:${PORT}/webhook`)
 console.error(`[line] Access mode: ${accessControl.getMode()}`)
 
+// --- Start Tunnel & Configure Webhook ---
+let killTunnel: (() => void) | null = null
+try {
+  console.error('[line] Starting cloudflared tunnel...')
+  const tunnel = await startTunnel(PORT)
+  killTunnel = tunnel.kill
+  const webhookUrl = `${tunnel.url}/webhook`
+  console.error(`[line] Tunnel URL: ${tunnel.url}`)
+
+  // Set webhook URL via LINE API
+  console.error(`[line] Setting webhook URL: ${webhookUrl}`)
+  const setResult = await lineClient.setWebhookUrl(webhookUrl)
+  if (!setResult) {
+    console.error('[line] WARNING: Failed to set webhook URL. Set it manually in LINE Console.')
+  } else {
+    console.error('[line] Webhook URL set successfully')
+
+    // Test webhook connectivity
+    console.error('[line] Testing webhook connectivity...')
+    // Wait briefly for LINE to propagate the new URL
+    await new Promise((r) => setTimeout(r, 2000))
+    const testResult = await lineClient.testWebhook()
+    if (testResult.success) {
+      console.error(`[line] Webhook test PASSED (status: ${testResult.statusCode})`)
+    } else {
+      console.error(`[line] Webhook test FAILED (status: ${testResult.statusCode}, reason: ${testResult.reason})`)
+      console.error('[line] The tunnel is running but LINE could not reach it. Retrying in 5s...')
+      await new Promise((r) => setTimeout(r, 5000))
+      const retry = await lineClient.testWebhook()
+      if (retry.success) {
+        console.error(`[line] Webhook test PASSED on retry (status: ${retry.statusCode})`)
+      } else {
+        console.error(`[line] Webhook test still FAILED. Check cloudflared and LINE Console.`)
+      }
+    }
+  }
+} catch (err) {
+  console.error(`[line] Tunnel setup failed: ${err instanceof Error ? err.message : err}`)
+  console.error('[line] Continuing without tunnel. Set webhook URL manually.')
+}
+
 // --- Graceful Shutdown ---
 process.stdin.on('end', () => {
   console.error('[line] stdin closed, shutting down')
+  killTunnel?.()
   httpServer.stop()
   process.exit(0)
 })

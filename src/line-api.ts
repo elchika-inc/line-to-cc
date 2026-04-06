@@ -1,4 +1,6 @@
 const PUSH_API_URL = 'https://api.line.me/v2/bot/message/push'
+const WEBHOOK_ENDPOINT_URL = 'https://api.line.me/v2/bot/channel/webhook/endpoint'
+const WEBHOOK_TEST_URL = 'https://api.line.me/v2/bot/channel/webhook/test'
 const MAX_TEXT_LENGTH = 5000
 
 export function splitText(text: string, maxLength: number): string[] {
@@ -38,7 +40,42 @@ export function createLineClient(accessToken: string) {
     }
   }
 
-  return { pushMessage }
+  async function setWebhookUrl(endpoint: string): Promise<boolean> {
+    const res = await fetch(WEBHOOK_ENDPOINT_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ endpoint }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      console.error(`[line] Failed to set webhook URL (${res.status}): ${body}`)
+      return false
+    }
+    return true
+  }
+
+  async function testWebhook(): Promise<{ success: boolean; statusCode?: number; reason?: string }> {
+    const res = await fetch(WEBHOOK_TEST_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({}),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      console.error(`[line] Webhook test request failed (${res.status}): ${body}`)
+      return { success: false }
+    }
+    const data = await res.json() as { success: boolean; statusCode: number; reason: string }
+    return data
+  }
+
+  return { pushMessage, setWebhookUrl, testWebhook }
 }
 
 export type LineClient = ReturnType<typeof createLineClient>
