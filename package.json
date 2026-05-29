@@ -8,10 +8,7 @@
     "start": "bun install --no-summary && bun src/server.ts",
     "dev": "bun --watch src/server.ts",
     "test": "bun test",
-    "test:e2e": "npx playwright test",
-    "slide:html": "marp slides/line-to-cc.md --theme slides/theme.css --html --output slides/line-to-cc.html && bun slides/inject-mermaid.ts slides/line-to-cc.html",
-    "slide:pdf": "marp slides/line-to-cc.md --theme slides/theme.css --pdf --output slides/line-to-cc.pdf --allow-local-files",
-    "slide:watch": "marp slides/line-to-cc.md --theme slides/theme.css --html --watch --output slides/line-to-cc.html"
+    "test:e2e": "npx playwright test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -19,7 +16,6 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@marp-team/marp-cli": "^4.4.0",
     "@playwright/test": "^1.59.1",
     "bun-types": "^1.3.11"
   }
