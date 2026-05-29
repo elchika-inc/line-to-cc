@@ -3,6 +3,10 @@
     "line": {
       "command": "bun",
       "args": ["src/server.ts"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
     }
   }
 }

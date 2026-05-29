@@ -2,14 +2,13 @@ import { spawn, execFileSync } from 'child_process'
 
 const TUNNEL_URL_PATTERN = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/
 
-// Kill any existing cloudflared tunnel processes to avoid port/URL conflicts
+// Kill only Quick Tunnel processes (--url flag) to avoid killing named tunnels
 function killExistingTunnels(): void {
   try {
-    execFileSync('pkill', ['-f', 'cloudflared tunnel'], { stdio: 'ignore' })
-    // Brief wait for processes to actually die
+    execFileSync('pkill', ['-f', 'cloudflared tunnel --url'], { stdio: 'ignore' })
     Bun.sleepSync(1000)
   } catch {
-    // No existing processes, that's fine
+    // No existing quick tunnels, that's fine
   }
 }
 
@@ -17,9 +16,13 @@ export function startTunnel(port: number): Promise<{ url: string; kill: () => vo
   killExistingTunnels()
 
   return new Promise((resolve, reject) => {
-    const proc = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    // --config /dev/null prevents cloudflared from reading ~/.cloudflared/config.yml,
+    // which would otherwise apply named-tunnel ingress rules and return 404 for Quick Tunnel URLs.
+    const proc = spawn(
+      'cloudflared',
+      ['tunnel', '--config', '/dev/null', '--url', `http://localhost:${port}`],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
 
     let resolved = false
     const timeout = setTimeout(() => {

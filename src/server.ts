@@ -122,6 +122,7 @@ mcp.setNotificationHandler(PermissionRequestSchema, async ({ params }) => {
 const app = createWebhookApp({
   channelSecret: CHANNEL_SECRET,
   onTextMessage: async (userId, text, eventId, replyTo) => {
+    console.error(`[line] onTextMessage: userId=${userId} mode=${accessControl.getMode()} allowed=${accessControl.isAllowed(userId)}`)
     // Sender gating (always by userId, even in groups)
     if (!accessControl.isAllowed(userId)) {
       if (accessControl.getMode() === 'pairing') {
@@ -150,6 +151,7 @@ const app = createWebhookApp({
         }
         return
       }
+      console.error(`[line] onTextMessage: BLOCKED userId=${userId} mode=${accessControl.getMode()}`)
       // Disabled or allowlist mode - ignore
       return
     }
@@ -159,10 +161,12 @@ const app = createWebhookApp({
     if (replyTo !== userId) {
       meta.group_id = replyTo
     }
+    console.error(`[line] onTextMessage: sending MCP notification meta=${JSON.stringify(meta)}`)
     await mcp.notification({
       method: 'notifications/claude/channel',
       params: { content: text, meta },
     })
+    console.error('[line] onTextMessage: MCP notification sent OK')
   },
   onVerdict: async (behavior, requestId) => {
     lastPendingRequestId = null
