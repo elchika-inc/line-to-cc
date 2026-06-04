@@ -51,28 +51,44 @@ export function createWebhookApp(options: WebhookAppOptions) {
     // Process events asynchronously
     queueMicrotask(() => {
       // Step 5: Empty events = URL verification
-      if (body.events.length === 0) return
+      if (body.events.length === 0) {
+        console.error('[line] webhook: empty events (URL verification ping)')
+        return
+      }
 
+      console.error(`[line] webhook: processing ${body.events.length} event(s)`)
       for (const event of body.events) {
+        console.error(`[line] webhook: event type=${event.type} id=${event.webhookEventId}`)
+
         // Step 6: Filter text message events
-        if (!isTextMessageEvent(event)) continue
+        if (!isTextMessageEvent(event)) {
+          console.error(`[line] webhook: skipping non-text event type=${event.type}`)
+          continue
+        }
 
         // Step 7: Deduplicate
-        if (dedup(event.webhookEventId)) continue
+        if (dedup(event.webhookEventId)) {
+          console.error(`[line] webhook: dedup skip id=${event.webhookEventId}`)
+          continue
+        }
 
         const userId = event.source.userId
         const text = event.message.text
         const replyTo = event.source.groupId ?? event.source.roomId ?? userId
 
+        console.error(`[line] webhook: userId=${userId} replyTo=${replyTo} text="${text.slice(0, 50)}"`)
+
         // Step 9: Check verdict pattern (bare yes/no uses last pending request_id)
         const verdict = parseVerdict(text, options.getLastRequestId?.() ?? undefined)
         if (verdict) {
+          console.error(`[line] webhook: verdict detected behavior=${verdict.behavior} requestId=${verdict.requestId}`)
           options.onVerdict(verdict.behavior, verdict.requestId)
           continue
         }
 
         // Step 10: Regular message
-        options.onTextMessage(userId, text, event.webhookEventId, replyTo)
+        Promise.resolve(options.onTextMessage(userId, text, event.webhookEventId, replyTo))
+          .catch((err) => console.error('[line] webhook: onTextMessage error:', err))
       }
     })
 
